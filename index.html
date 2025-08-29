@@ -1,1 +1,582 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kartenspiel – 2-Teilig (ohne Joker)</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#171a2b; --muted:#8e92b2; --accent:#4f6af8; --ok:#2ecc71; --bad:#ff6b6b;
+    --card:#fff; --card-border:#dcdde7;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 600px at 70% 10%, #1c2140, var(--bg));
+    color:#eef0ff;
+  }
+  header{padding:20px 16px; text-align:center}
+  header h1{margin:0 0 4px 0; font-size:22px}
+  header p{margin:0; color:var(--muted); font-size:14px}
+  .app{max-width:1024px; margin:0 auto; padding:16px}
+  .panel{
+    background:linear-gradient(180deg, #1a1f38, var(--panel));
+    border:1px solid #232746; border-radius:14px; padding:16px; box-shadow:0 6px 30px rgba(0,0,0,.25);
+  }
+  .row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start}
+  .col{flex:1 1 320px}
+  label{display:block; font-size:13px; color:var(--muted); margin:8px 0 6px}
+  input[type="text"], input[type="number"], select{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid #2a2f55;
+    background:#12162b; color:#fff; outline:none;
+  }
+  button{
+    background:var(--accent); color:#fff; border:none; border-radius:10px; padding:10px 14px; font-weight:600;
+    cursor:pointer; transition:transform .03s ease;
+  }
+  button:active{transform:translateY(1px)}
+  button.ghost{background:transparent; border:1px solid #2a2f55}
+  .muted{color:var(--muted)}
+  .hint{font-size:13px; color:var(--muted); margin-top:6px}
+  .deck-counter{font-size:13px; color:var(--muted)}
+  .flex{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .space{height:12px}
+  .big{font-size:18px; font-weight:700}
+  .score{
+    display:grid; grid-template-columns:1.2fr repeat(2, .8fr) 1fr; gap:6px; align-items:center;
+  }
+  .score > div{padding:8px 10px; background:#12162b; border:1px solid #2a2f55; border-radius:8px}
+  .score .head{background:#10142a; color:#9aa0c6; font-weight:700}
+  .pill{display:inline-block; padding:3px 8px; border-radius:999px; background:#10142a; border:1px solid #2a2f55; color:#c6c8e8; font-size:12px}
+  /* Cards */
+  .cards{display:flex; gap:10px; flex-wrap:wrap}
+  .card{
+    width:70px; height:100px; background:var(--card); border:1px solid var(--card-border); border-radius:10px; position:relative;
+    color:#111; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:20px;
+  }
+  .card.black{color:#111}
+  .card.red{color:#c72a2a}
+  .card .corner{position:absolute; top:6px; left:6px; font-size:12px; line-height:1.1; text-align:left}
+  .card .corner.bottom{top:auto; left:auto; bottom:6px; right:6px; transform:rotate(180deg)}
+  .card .suit{font-size:22px; margin-top:2px}
+  .card.back{
+    background:repeating-linear-gradient(45deg, #102040, #102040 8px, #1a2f5d 8px, #1a2f5d 16px);
+    border-color:#0a1730;
+  }
+  .grid12{display:grid; grid-template-columns:repeat(6, 1fr); gap:12px}
+  .center{text-align:center}
+  .result{font-weight:700; padding:6px 10px; border-radius:8px; display:inline-block}
+  .ok{background:rgba(46,204,113,.15); border:1px solid var(--ok); color:#bdf3cf}
+  .bad{background:rgba(255,107,107,.12); border:1px solid var(--bad); color:#ffc7c7}
+  .log{max-height:180px; overflow:auto; padding:10px; background:#0f1330; border:1px solid #1f2450; border-radius:10px; font-size:13px}
+  .tiny{font-size:12px}
+  .sep{height:1px; background:#262a4f; margin:12px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Kartenspiel – 2-Teilig (ohne Joker)</h1>
+  <p>Teil 1: Rot/Schwarz → Größer/Kleiner → Zwischen/Außerhalb → Symbol · Teil 2: 2×6 Karten + Finale (Glas leeren)</p>
+</header>
 
+<div class="app">
+  <!-- Setup -->
+  <div id="setup" class="panel">
+    <div class="row">
+      <div class="col">
+        <label for="playerCount">Anzahl Spieler (1–9)</label>
+        <input type="number" id="playerCount" min="1" max="9" value="3" />
+        <div class="hint">Tipp: Namen lassen sich gleich anpassen.</div>
+      </div>
+      <div class="col">
+        <label>Spielregeln (Kurz):</label>
+        <ul class="tiny">
+          <li><b>Teil 1:</b> Jeder Spieler erhält nacheinander 4 Karten (Ratefolgen siehe oben). „Gleich“ zählt bei Größer/Kleiner als falsch. „Zwischen“ ist exklusiv.</li>
+          <li><b>Teil 2:</b> 2 Reihen à 6 verdeckte Karten + 1 finale Karte (Glas leeren). Aufdecken: oben1, unten1, oben2, …, unten6, Finale. Wer eine <b>gleiche Zahl oder dasselbe Symbol</b> wie in seiner Hand hat, trinkt so viele Schlücke wie die Position (1–12). Finale = Glas leeren.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="space"></div>
+    <div id="nameList" class="row"></div>
+    <div class="space"></div>
+    <div class="flex">
+      <button id="buildNames">Spieler-Namen erzeugen</button>
+      <button id="startGame">Spiel starten</button>
+      <span id="setupWarn" class="muted"></span>
+    </div>
+  </div>
+
+  <!-- Phase 1 -->
+  <div id="phase1" class="panel" style="display:none">
+    <div class="flex">
+      <div class="pill deck-counter" id="deckCountP1">Deck: 52</div>
+      <div class="pill">Teil 1</div>
+    </div>
+    <div class="space"></div>
+    <div class="row">
+      <div class="col">
+        <div class="big" id="currentPlayerTitle">Spieler …</div>
+        <div class="hint" id="roundHint">Runde 1 von 4 – Tippe: <b>Rot</b> oder <b>Schwarz</b></div>
+        <div id="controlsP1"></div>
+        <div class="space"></div>
+        <div id="resultArea"></div>
+        <div class="space"></div>
+        <div class="flex">
+          <button id="revealBtn">Aufdecken</button>
+          <button id="nextTurnBtn" class="ghost" disabled>Weiter</button>
+        </div>
+        <div class="space"></div>
+        <div class="log" id="logP1"></div>
+      </div>
+      <div class="col">
+        <label>Handkarten (aktiver Spieler)</label>
+        <div id="handP1" class="cards"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 2 -->
+  <div id="phase2" class="panel" style="display:none">
+    <div class="flex">
+      <div class="pill deck-counter" id="deckCountP2">Deck: …</div>
+      <div class="pill">Teil 2</div>
+    </div>
+    <div class="space"></div>
+    <div class="row">
+      <div class="col">
+        <label>Reihe oben (Selber trinken)</label>
+        <div id="rowTop" class="grid12"></div>
+        <div class="space"></div>
+        <label>Reihe unten (Selber trinken)</label>
+        <div id="rowBottom" class="grid12"></div>
+        <div class="space"></div>
+        <label>Finale Karte – <b>Glas komplett leeren</b></label>
+        <div id="finalCard" class="cards"></div>
+        <div class="space"></div>
+        <div class="flex">
+          <button id="flipNext">Nächste Karte aufdecken</button>
+          <button id="restart" class="ghost">Neu starten</button>
+          <span class="muted" id="flipInfo">Schritt 0 von 13</span>
+        </div>
+        <div class="space"></div>
+        <div class="log" id="logP2"></div>
+      </div>
+      <div class="col">
+        <label>Übersicht Hände</label>
+        <div id="allHands"></div>
+        <div class="space"></div>
+        <label>Trink-Tabelle (Teil 2)</label>
+        <div class="score" id="scoreHead">
+          <div class="head">Spieler</div>
+          <div class="head">Schlücke</div>
+          <div class="head">Treffer (Zahl/Symbol)</div>
+          <div class="head">Finale?</div>
+        </div>
+        <div id="scoreBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Utilities ---------- */
+const SUITS = [
+  {key:'hearts',  sym:'♥', name:'Herz',  color:'red'},
+  {key:'diamonds',sym:'♦', name:'Karo',  color:'red'},
+  {key:'clubs',   sym:'♣', name:'Kreuz', color:'black'},
+  {key:'spades',  sym:'♠', name:'Pik',   color:'black'},
+];
+const RANKS = [
+  {r:'2', v:2}, {r:'3', v:3}, {r:'4', v:4}, {r:'5', v:5}, {r:'6', v:6}, {r:'7', v:7},
+  {r:'8', v:8}, {r:'9', v:9}, {r:'10', v:10}, {r:'J', v:11}, {r:'Q', v:12}, {r:'K', v:13}, {r:'A', v:14}
+];
+
+function createDeck(){
+  const deck=[];
+  for(const s of SUITS){
+    for(const r of RANKS){
+      deck.push({
+        suit:s.key, suitName:s.name, suitSym:s.sym, color:s.color,
+        rank:r.r, value:r.v, code:`${r.r}${s.sym}`
+      });
+    }
+  }
+  return deck;
+}
+function shuffle(arr){
+  for(let i=arr.length-1; i>0; i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+function el(html){const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstChild;}
+function cardEl(card, facedown=false){
+  if(facedown) return el(`<div class="card back"></div>`);
+  const cls = `card ${card.color==='red'?'red':'black'}`;
+  return el(`
+    <div class="${cls}" title="${card.rank} ${card.suitName}">
+      <div class="corner">${card.rank}<br>${card.suitSym}</div>
+      <div class="suit">${card.suitSym}</div>
+      <div class="corner bottom">${card.rank}<br>${card.suitSym}</div>
+    </div>
+  `);
+}
+function handToHTML(hand){
+  const wrap = el(`<div class="cards"></div>`);
+  hand.forEach(c => wrap.appendChild(cardEl(c)));
+  return wrap;
+}
+function minmax(a,b){return [Math.min(a,b), Math.max(a,b)];}
+
+/* ---------- Game State ---------- */
+const state = {
+  players: [], // {name, hand:[], sips:0, hits:0, final:false}
+  deck: [],
+  phase: 0, // 0 setup, 1 part1, 2 part2
+  // part 1 turn:
+  p1:{
+    playerIdx: 0,
+    step: 1, // 1..4
+    guess: null,
+    lastDraw: null,
+  },
+  // part 2 board:
+  p2:{
+    top: [],   // [{card, revealed:false}]
+    bottom: [],// same
+    final: null, // {card, revealed:false}
+    flipOrder: [], // array of refs like {row:'top'|'bottom'|'final', idx:number}
+    flipPos: 0 // index in flipOrder
+  }
+};
+
+/* ---------- Setup UI ---------- */
+const nameList = document.getElementById('nameList');
+const playerCountInput = document.getElementById('playerCount');
+document.getElementById('buildNames').addEventListener('click', () => {
+  const n = Math.max(1, Math.min(9, parseInt(playerCountInput.value||'3',10)));
+  nameList.innerHTML='';
+  for(let i=0;i<n;i++){
+    const col = el(`<div class="col"><label>Spieler ${i+1} – Name</label><input type="text" value="Spieler ${i+1}" /></div>`);
+    nameList.appendChild(col);
+  }
+});
+
+document.getElementById('startGame').addEventListener('click', () => {
+  const inputs = nameList.querySelectorAll('input[type="text"]');
+  let names=[];
+  if(inputs.length===0){
+    // generate defaults per count
+    const n = Math.max(1, Math.min(9, parseInt(playerCountInput.value||'3',10)));
+    for(let i=0;i<n;i++) names.push(`Spieler ${i+1}`);
+  } else {
+    inputs.forEach(inp => {
+      const v = (inp.value||'').trim();
+      if(v) names.push(v);
+    });
+  }
+  if(names.length<1){ document.getElementById('setupWarn').textContent='Bitte mindestens 1 Spieler angeben.'; return; }
+
+  const need = 4*names.length + 13;
+  if(need>52){
+    document.getElementById('setupWarn').textContent = `Zu viele Spieler für ein 52er Deck (benötigt ${need}). Bitte ≤ 9.`;
+    return;
+  }
+  // init state
+  state.players = names.map(n=>({name:n, hand:[], sips:0, hits:0, final:false}));
+  state.deck = shuffle(createDeck());
+  state.phase = 1;
+  state.p1 = {playerIdx:0, step:1, guess:null, lastDraw:null};
+
+  document.getElementById('setup').style.display='none';
+  document.getElementById('phase1').style.display='block';
+  updateP1UI();
+});
+
+/* ---------- Part 1 (guessing & deal) ---------- */
+const deckCountP1 = document.getElementById('deckCountP1');
+const currentPlayerTitle = document.getElementById('currentPlayerTitle');
+const roundHint = document.getElementById('roundHint');
+const controlsP1 = document.getElementById('controlsP1');
+const resultArea = document.getElementById('resultArea');
+const handP1 = document.getElementById('handP1');
+const logP1 = document.getElementById('logP1');
+const revealBtn = document.getElementById('revealBtn');
+const nextTurnBtn = document.getElementById('nextTurnBtn');
+
+function stepHint(step){
+  switch(step){
+    case 1: return 'Runde 1/4 – Rate: <b>Rot</b> oder <b>Schwarz</b>';
+    case 2: return 'Runde 2/4 – Rate: <b>Größer</b> oder <b>Kleiner</b> als die letzte Karte (Gleich = falsch)';
+    case 3: return 'Runde 3/4 – Rate: Liegt die Karte <b>zwischen</b> (exklusiv) den ersten beiden oder <b>außerhalb</b>?';
+    case 4: return 'Runde 4/4 – Rate das <b>Symbol</b> (Herz, Karo, Kreuz, Pik)';
+  }
+}
+function renderControls(){
+  controlsP1.innerHTML='';
+  const s = state.p1.step;
+  if(s===1){
+    controlsP1.appendChild(el(`
+      <div class="flex">
+        <label><input type="radio" name="c" value="red"> Rot</label>
+        <label><input type="radio" name="c" value="black"> Schwarz</label>
+      </div>
+    `));
+  } else if(s===2){
+    const last = lastValue();
+    controlsP1.appendChild(el(`
+      <div>
+        <div class="muted">Letzte Karte: <b>${last.label}</b></div>
+        <div class="flex">
+          <label><input type="radio" name="c" value="higher"> Größer</label>
+          <label><input type="radio" name="c" value="lower"> Kleiner</label>
+        </div>
+      </div>
+    `));
+  } else if(s===3){
+    const [a,b] = twoValues();
+    const [lo,hi] = minmax(a.v, b.v);
+    controlsP1.appendChild(el(`
+      <div>
+        <div class="muted">Bisher: <b>${a.label}</b> & <b>${b.label}</b> (Zwischen exklusiv)</div>
+        <div class="flex">
+          <label><input type="radio" name="c" value="inside"> Zwischen</label>
+          <label><input type="radio" name="c" value="outside"> Außerhalb / Gleich</label>
+        </div>
+        <div class="hint">Zwischen = strikt zwischen ${lo} und ${hi}. Randwerte zählen als außerhalb.</div>
+      </div>
+    `));
+  } else if(s===4){
+    controlsP1.appendChild(el(`
+      <div class="flex">
+        ${SUITS.map(s => `<label><input type="radio" name="c" value="${s.key}"> ${s.name} ${s.sym}</label>`).join('')}
+      </div>
+    `));
+  }
+}
+function selected(){
+  const r = controlsP1.querySelector('input[type="radio"]:checked');
+  return r ? r.value : null;
+}
+function lastValue(){
+  const p = state.players[state.p1.playerIdx];
+  const c = p.hand[p.hand.length-1];
+  return {v:c.value, label:`${c.rank}${c.suitSym}`};
+}
+function twoValues(){
+  const p = state.players[state.p1.playerIdx];
+  const c1 = p.hand[0], c2 = p.hand[1];
+  return [
+    {v:c1.value, label:`${c1.rank}${c1.suitSym}`},
+    {v:c2.value, label:`${c2.rank}${c2.suitSym}`}
+  ];
+}
+function updateP1UI(){
+  deckCountP1.textContent = `Deck: ${state.deck.length}`;
+  const p = state.players[state.p1.playerIdx];
+  currentPlayerTitle.textContent = `Am Zug: ${p.name}`;
+  roundHint.innerHTML = stepHint(state.p1.step);
+  renderControls();
+  // hand
+  handP1.innerHTML='';
+  p.hand.forEach(c => handP1.appendChild(cardEl(c)));
+  resultArea.innerHTML='';
+  nextTurnBtn.disabled = true;
+  revealBtn.disabled = false;
+}
+
+revealBtn.addEventListener('click', () => {
+  const choice = selected();
+  if(!choice){ resultArea.innerHTML=`<span class="muted">Bitte eine Option wählen.</span>`; return; }
+  const card = state.deck.pop();
+  const p = state.players[state.p1.playerIdx];
+
+  // check correctness
+  let ok=false, explain='';
+  if(state.p1.step===1){
+    ok = (choice===card.color);
+    explain = `Gewählt: ${choice==='red'?'Rot':'Schwarz'} · Karte: ${card.rank}${card.suitSym} (${card.color==='red'?'Rot':'Schwarz'})`;
+  } else if(state.p1.step===2){
+    const v = lastValue().v;
+    ok = (choice==='higher' && card.value>v) || (choice==='lower' && card.value<v);
+    explain = `Gewählt: ${choice==='higher'?'Größer':'Kleiner'} als ${v} · Karte: ${card.rank}${card.suitSym} (${card.value})`;
+  } else if(state.p1.step===3){
+    const [a,b] = twoValues();
+    const [lo,hi] = minmax(a.v,b.v);
+    const inside = (card.value>lo && card.value<hi);
+    ok = (choice==='inside' && inside) || (choice==='outside' && !inside);
+    explain = `Gewählt: ${choice==='inside'?'Zwischen':'Außerhalb'} ${lo}–${hi} · Karte: ${card.rank}${card.suitSym} (${card.value})`;
+  } else if(state.p1.step===4){
+    ok = (choice===card.suit);
+    const suit = SUITS.find(s=>s.key===choice);
+    explain = `Gewählt: ${suit.name} ${suit.sym} · Karte: ${card.rank}${card.suitSym}`;
+  }
+
+  p.hand.push(card);
+  // show result
+  const tag = el(`<span class="result ${ok?'ok':'bad'}">${ok?'Richtig':'Falsch'}</span>`);
+  resultArea.innerHTML='';
+  resultArea.appendChild(tag);
+  resultArea.appendChild(el(`<div class="hint">${explain}</div>`));
+  // show card in hand
+  handP1.appendChild(cardEl(card));
+  // log
+  const logLine = `[${p.name}] Runde ${state.p1.step}: ${ok?'✔️':'❌'} – ${card.rank}${card.suitSym}`;
+  logP1.appendChild(el(`<div>${logLine}</div>`));
+  logP1.scrollTop = logP1.scrollHeight;
+
+  revealBtn.disabled = true;
+  nextTurnBtn.disabled = false;
+});
+
+nextTurnBtn.addEventListener('click', ()=>{
+  // advance step or player
+  if(state.p1.step<4){
+    state.p1.step++;
+  } else {
+    // next player
+    state.p1.step=1;
+    state.p1.playerIdx++;
+  }
+  if(state.p1.playerIdx >= state.players.length){
+    // move to part 2
+    startPart2();
+    return;
+  }
+  updateP1UI();
+});
+
+/* ---------- Part 2 (board + flips) ---------- */
+const phase2 = document.getElementById('phase2');
+const deckCountP2 = document.getElementById('deckCountP2');
+const rowTop = document.getElementById('rowTop');
+const rowBottom = document.getElementById('rowBottom');
+const finalCardWrap = document.getElementById('finalCard');
+const flipNextBtn = document.getElementById('flipNext');
+const flipInfo = document.getElementById('flipInfo');
+const logP2 = document.getElementById('logP2');
+const allHands = document.getElementById('allHands');
+const scoreBody = document.getElementById('scoreBody');
+
+function startPart2(){
+  document.getElementById('phase1').style.display='none';
+  phase2.style.display='block';
+
+  // build board: 6 top, 6 bottom, 1 final
+  state.p2.top = Array.from({length:6}, ()=>({card:state.deck.pop(), revealed:false}));
+  state.p2.bottom = Array.from({length:6}, ()=>({card:state.deck.pop(), revealed:false}));
+  state.p2.final = {card:state.deck.pop(), revealed:false};
+  // flip order: top1, bottom1, top2, bottom2, ...
+  state.p2.flipOrder = [];
+  for(let i=0;i<6;i++){
+    state.p2.flipOrder.push({row:'top', idx:i});
+    state.p2.flipOrder.push({row:'bottom', idx:i});
+  }
+  state.p2.flipOrder.push({row:'final', idx:0});
+  state.p2.flipPos = 0;
+
+  // reset part2 stats
+  state.players.forEach(p=>{p.sips=0; p.hits=0; p.final=false;});
+
+  renderPart2();
+}
+function renderPart2(){
+  deckCountP2.textContent = `Deck: ${state.deck.length}`;
+  rowTop.innerHTML='';
+  state.p2.top.forEach(cell => rowTop.appendChild(cardEl(cell.card, !cell.revealed)));
+  rowBottom.innerHTML='';
+  state.p2.bottom.forEach(cell => rowBottom.appendChild(cardEl(cell.card, !cell.revealed)));
+  finalCardWrap.innerHTML='';
+  finalCardWrap.appendChild(cardEl(state.p2.final.card, !state.p2.final.revealed));
+  flipInfo.textContent = `Schritt ${state.p2.flipPos} von 13`;
+  // hands
+  allHands.innerHTML='';
+  state.players.forEach(p=>{
+    const wrap = el(`<div class="panel" style="padding:10px; margin-bottom:10px"></div>`);
+    wrap.appendChild(el(`<div class="big" style="font-size:14px">${p.name}</div>`));
+    wrap.appendChild(handToHTML(p.hand));
+    allHands.appendChild(wrap);
+  });
+  renderScore();
+}
+function renderScore(){
+  scoreBody.innerHTML='';
+  state.players.forEach(p=>{
+    const row = el(`<div class="score"></div>`);
+    row.appendChild(el(`<div>${p.name}</div>`));
+    row.appendChild(el(`<div>${p.sips}</div>`));
+    row.appendChild(el(`<div>${p.hits}</div>`));
+    row.appendChild(el(`<div>${p.final ? '🍺 Glas leeren' : '–'}</div>`));
+    scoreBody.appendChild(row);
+  });
+}
+function matchesHand(p, boardCard){
+  // match by rank OR by suit
+  return p.hand.some(c => c.rank===boardCard.rank || c.suit===boardCard.suit);
+}
+function flipNext(){
+  if(state.p2.flipPos>=state.p2.flipOrder.length) return;
+  const stepIdx = state.p2.flipPos; // 0-based
+  const item = state.p2.flipOrder[stepIdx];
+  let revealedCard=null;
+  if(item.row==='top'){
+    state.p2.top[item.idx].revealed=true;
+    revealedCard = state.p2.top[item.idx].card;
+  } else if(item.row==='bottom'){
+    state.p2.bottom[item.idx].revealed=true;
+    revealedCard = state.p2.bottom[item.idx].card;
+  } else {
+    state.p2.final.revealed=true;
+    revealedCard = state.p2.final.card;
+  }
+  state.p2.flipPos++;
+
+  // resolve drinks
+  if(item.row==='final'){
+    // anyone matching rank or suit empties glass
+    const hitNames=[];
+    state.players.forEach(p=>{
+      if(matchesHand(p, revealedCard)){ p.final=true; p.hits++; hitNames.push(p.name); }
+    });
+    const msg = `Finale aufgedeckt: ${revealedCard.rank}${revealedCard.suitSym} – ${hitNames.length?hitNames.join(', ')+' müssen ihr Glas leeren!':'Niemand muss das Glas leeren.'}`;
+    logP2.appendChild(el(`<div>🍻 <b>${msg}</b></div>`));
+  } else {
+    const position = stepIdx+1; // 1..12 before final
+    const hitNames=[];
+    state.players.forEach(p=>{
+      if(matchesHand(p, revealedCard)){
+        p.sips += position;
+        p.hits++;
+        hitNames.push(`${p.name} (+${position})`);
+      }
+    });
+    const rowName = item.row==='top' ? 'oben' : 'unten';
+    const msg = `Karte ${position} (${rowName}): ${revealedCard.rank}${revealedCard.suitSym} → ${hitNames.length?hitNames.join(', '):'keine Treffer'}`;
+    logP2.appendChild(el(`<div>${msg}</div>`));
+  }
+  logP2.scrollTop = logP2.scrollHeight;
+  renderPart2();
+  if(state.p2.flipPos>=state.p2.flipOrder.length){
+    flipNextBtn.disabled=true;
+    flipInfo.textContent = `Fertig – 13/13`;
+  } else {
+    flipInfo.textContent = `Schritt ${state.p2.flipPos} von 13`;
+  }
+}
+flipNextBtn.addEventListener('click', flipNext);
+
+document.getElementById('restart').addEventListener('click', ()=>{
+  // go back to setup fresh
+  state.players = [];
+  state.deck = [];
+  state.phase = 0;
+  document.getElementById('setupWarn').textContent='';
+  nameList.innerHTML='';
+  document.getElementById('setup').style.display='block';
+  document.getElementById('phase1').style.display='none';
+  document.getElementById('phase2').style.display='none';
+});
+</script>
+</body>
+</html>
